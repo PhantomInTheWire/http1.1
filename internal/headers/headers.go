@@ -48,7 +48,16 @@ func (h Headers) Parse(data []byte) (n int, done bool, err error) {
 		if len(kv) != 2 {
 			return 0, false, fmt.Errorf("malinformed header: %v lenkv: %v", headerLine, len(kv))
 		}
-		key := strings.TrimSpace(kv[0])
+		rawKey := strings.TrimSpace(kv[0])
+		if rawKey == "" {
+			return 0, false, fmt.Errorf("empty header key")
+		}
+		for _, r := range rawKey {
+			if r < 32 || r > 126 || r == ':' {
+				return 0, false, fmt.Errorf("invalid character in header key: %v", rawKey)
+			}
+		}
+		key := strings.ToLower(rawKey)
 		value := strings.TrimSpace(kv[1])
 		h[key] = value
 	}
