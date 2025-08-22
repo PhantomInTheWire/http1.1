@@ -2,8 +2,8 @@ package main
 
 import (
 	"bufio"
-	"log"
 	"fmt"
+	"log"
 	"net"
 	"os"
 )
@@ -22,12 +22,12 @@ func main() {
 	for {
 		fmt.Printf(">")
 		input, err := reader.ReadString('\n')
-		if (err != nil) {
+		if err != nil {
 			log.Printf("error reading from stdin: %v", err)
 			return
 		}
 		_, err = udpConn.Write([]byte(input))
-		if (err != nil) {
+		if err != nil {
 			log.Printf("error writing to upd: %v", err)
 			return
 		}

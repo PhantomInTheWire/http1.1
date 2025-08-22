@@ -6,15 +6,16 @@ import (
 	"strings"
 )
 
-var BAD_REQUEST = fmt.Errorf("bad request string") 
+var BAD_REQUEST = fmt.Errorf("bad request string")
 
 const bufferSize = 8
 
-func validateHttpVersion(version string) (bool) {
+func validateHttpVersion(version string) bool {
 	return version == "1.1"
 }
 
 type ParseState int
+
 const (
 	PendingState ParseState = 0
 	DoneState    ParseState = 1
@@ -22,7 +23,7 @@ const (
 
 type Request struct {
 	RequestLine RequestLine
-	State ParseState
+	State       ParseState
 }
 
 func newRequest() Request {
@@ -39,25 +40,24 @@ type RequestLine struct {
 
 func (r *Request) parse(data []byte) (int, error) {
 	if r.State == DoneState {
-			return 0, nil
-		}
-		
-		requestLine, consumed, err := parseRequestLine(string(data))
-		if err != nil {
-			return 0, err
-		}
-		if consumed == 0 {
-			return 0, nil
-		}
-		if requestLine == nil {
-        	return 0, nil
-		}
-		
-		r.RequestLine = *requestLine
-		r.State = DoneState
-		return consumed, nil
-}
+		return 0, nil
+	}
 
+	requestLine, consumed, err := parseRequestLine(string(data))
+	if err != nil {
+		return 0, err
+	}
+	if consumed == 0 {
+		return 0, nil
+	}
+	if requestLine == nil {
+		return 0, nil
+	}
+
+	r.RequestLine = *requestLine
+	r.State = DoneState
+	return consumed, nil
+}
 
 func parseRequestLine(RequestStr string) (*RequestLine, int, error) {
 	parts := strings.Split(RequestStr, "\r\n")
@@ -65,25 +65,25 @@ func parseRequestLine(RequestStr string) (*RequestLine, int, error) {
 		return nil, len(parts), nil
 	}
 	if len(parts) < 1 {
-		return  nil, 0, BAD_REQUEST
+		return nil, 0, BAD_REQUEST
 	}
-	
+
 	seperatedLineOne := strings.Split(parts[0], " ")
-	
+
 	if len(seperatedLineOne) != 3 {
 		return nil, 0, BAD_REQUEST
 	}
-	
+
 	httpVersion := strings.Split(seperatedLineOne[2], "/")[1]
 	requestTarget := seperatedLineOne[1]
 	method := seperatedLineOne[0]
-	if (!validateHttpVersion(httpVersion)) {
+	if !validateHttpVersion(httpVersion) {
 		return nil, 0, fmt.Errorf(BAD_REQUEST.Error(), RequestStr)
 	}
 	rl := &RequestLine{
-		HttpVersion : httpVersion,
-		RequestTarget : requestTarget,
-		Method: method, 
+		HttpVersion:   httpVersion,
+		RequestTarget: requestTarget,
+		Method:        method,
 	}
 	return rl, len(parts[0]), nil
 }
@@ -112,8 +112,8 @@ func RequestFromReader(reader io.Reader) (*Request, error) {
 		}
 	}
 	if r.State != DoneState {
-			return nil, BAD_REQUEST
-		}
-		
+		return nil, BAD_REQUEST
+	}
+
 	return &r, nil
 }

@@ -40,13 +40,13 @@ func fRead(f io.ReadCloser, stream chan string) {
 
 func main() {
 	tcpListener, err := net.Listen("tcp", "127.0.0.1:42069")
-	if (err != nil) {
+	if err != nil {
 		return
 	}
 	defer tcpListener.Close()
 	for {
 		tcpConn, err := tcpListener.Accept()
-		if (err != nil) {
+		if err != nil {
 			return
 		}
 		fmt.Printf("a connection has been accepted\n")
