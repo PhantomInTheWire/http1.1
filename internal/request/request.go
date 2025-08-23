@@ -6,7 +6,7 @@ import (
 	"strings"
 )
 
-var BAD_REQUEST = fmt.Errorf("bad request string")
+var ErrBadRequest = fmt.Errorf("bad request string")
 
 const bufferSize = 8
 
@@ -65,20 +65,20 @@ func parseRequestLine(RequestStr string) (*RequestLine, int, error) {
 		return nil, len(parts), nil
 	}
 	if len(parts) < 1 {
-		return nil, 0, BAD_REQUEST
+		return nil, 0, ErrBadRequest
 	}
 
 	seperatedLineOne := strings.Split(parts[0], " ")
 
 	if len(seperatedLineOne) != 3 {
-		return nil, 0, BAD_REQUEST
+		return nil, 0, ErrBadRequest
 	}
 
 	httpVersion := strings.Split(seperatedLineOne[2], "/")[1]
 	requestTarget := seperatedLineOne[1]
 	method := seperatedLineOne[0]
 	if !validateHttpVersion(httpVersion) {
-		return nil, 0, fmt.Errorf(BAD_REQUEST.Error(), RequestStr)
+		return nil, 0, fmt.Errorf("%s: %s", ErrBadRequest.Error(), RequestStr)
 	}
 	rl := &RequestLine{
 		HttpVersion:   httpVersion,
@@ -112,7 +112,7 @@ func RequestFromReader(reader io.Reader) (*Request, error) {
 		}
 	}
 	if r.State != DoneState {
-		return nil, BAD_REQUEST
+		return nil, ErrBadRequest
 	}
 
 	return &r, nil

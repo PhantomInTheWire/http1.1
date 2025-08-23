@@ -139,7 +139,7 @@ func TestHeadersParse(t *testing.T) {
 		assert.Equal(t, 0, n)
 		assert.False(t, done)
 	})
-	
+
 	t.Run("Multiple values for same header key", func(t *testing.T) {
 		headers := NewHeaders()
 
@@ -158,20 +158,20 @@ func TestHeadersParse(t *testing.T) {
 	})
 
 	t.Run("Append to existing header key", func(t *testing.T) {
-			headers := NewHeaders()
-			headers["set-person"] = "already-here"
-	
-			data := []byte("Set-Person: lane-loves-go\r\nSet-Person: prime-loves-zig\r\n\r\n")
-			n, done, err := headers.Parse(data)
-			require.NoError(t, err)
-			require.NotNil(t, headers)
-	
-			// Expect existing value + appended new values
-			expected := "already-here, lane-loves-go, prime-loves-zig"
-			assert.Equal(t, expected, headers["set-person"])
-	
-			assert.Equal(t, len("Set-Person: lane-loves-go\r\nSet-Person: prime-loves-zig\r\n\r\n"), n)
-			assert.True(t, done)
+		headers := NewHeaders()
+		headers["set-person"] = "already-here"
+
+		data := []byte("Set-Person: lane-loves-go\r\nSet-Person: prime-loves-zig\r\n\r\n")
+		n, done, err := headers.Parse(data)
+		require.NoError(t, err)
+		require.NotNil(t, headers)
+
+		// Expect existing value + appended new values
+		expected := "already-here, lane-loves-go, prime-loves-zig"
+		assert.Equal(t, expected, headers["set-person"])
+
+		assert.Equal(t, len("Set-Person: lane-loves-go\r\nSet-Person: prime-loves-zig\r\n\r\n"), n)
+		assert.True(t, done)
 	})
 
 }

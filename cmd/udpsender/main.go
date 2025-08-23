@@ -17,7 +17,11 @@ func main() {
 	if err != nil {
 		return
 	}
-	defer udpConn.Close()
+	defer func() {
+		if err := udpConn.Close(); err != nil {
+			fmt.Printf("Error closing UDP connection: %v\n", err)
+		}
+	}()
 	reader := bufio.NewReader(os.Stdin)
 	for {
 		fmt.Printf(">")
