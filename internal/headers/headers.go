@@ -59,7 +59,12 @@ func (h Headers) Parse(data []byte) (n int, done bool, err error) {
 		}
 		key := strings.ToLower(rawKey)
 		value := strings.TrimSpace(kv[1])
-		h[key] = value
+		if (h[key] == "") {
+			h[key] = value
+		} else {
+			h[key] += ", "
+			h[key] += value
+		}
 	}
 	return endIdx + len("\r\n\r\n"), true, nil
 }
