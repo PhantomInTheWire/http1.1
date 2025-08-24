@@ -25,33 +25,42 @@ func (h Headers) Parse(data []byte) (n int, done bool, err error) {
 	headerLines := strings.Split(headerBlock, "\r\n")
 
 	for _, headerLine := range headerLines {
-		if headerLine == "" {
-			continue
-		}
-		if hasSpaceBeforeColon(headerLine) {
-			return 0, false, fmt.Errorf("has a space before colon, header: %v", headerLine)
-		}
-		kv := strings.SplitN(headerLine, ":", 2)
-		if len(kv) != 2 {
-			return 0, false, fmt.Errorf("malinformed header: %v lenkv: %v", headerLine, len(kv))
-		}
-		rawKey := strings.TrimSpace(kv[0])
-		if rawKey == "" {
-			return 0, false, fmt.Errorf("empty header key")
-		}
-		for _, r := range rawKey {
-			if r <= 32 || r > 126 || r == ':' {
-				return 0, false, fmt.Errorf("invalid character in header key: %v", rawKey)
-			}
-		}
-		key := strings.ToLower(rawKey)
-		value := strings.TrimSpace(kv[1])
-		if h[key] == "" {
-			h[key] = value
-		} else {
-			h[key] += ", "
-			h[key] += value
+		if err := h.parseHeaderLine(headerLine); err != nil {
+			return 0, false, err
 		}
 	}
 	return endIdx + len("\r\n\r\n"), true, nil
+}
+
+func (h Headers) parseHeaderLine(headerLine string) error {
+	if headerLine == "" {
+		return nil
+	}
+	if hasSpaceBeforeColon(headerLine) {
+		return fmt.Errorf("has a space before colon, header: %v", headerLine)
+	}
+	kv := strings.SplitN(headerLine, ":", 2)
+	if len(kv) != 2 {
+		return fmt.Errorf("malinformed header: %v lenkv: %v", headerLine, len(kv))
+	}
+	rawKey := strings.TrimSpace(kv[0])
+	if rawKey == "" {
+		return fmt.Errorf("empty header key")
+	}
+	if err := validateHeaderKey(rawKey); err != nil {
+		return err
+	}
+	key := strings.ToLower(rawKey)
+	value := strings.TrimSpace(kv[1])
+	h.setHeaderValue(key, value)
+	return nil
+}
+
+func (h Headers) setHeaderValue(key, value string) {
+	if h[key] == "" {
+		h[key] = value
+	} else {
+		h[key] += ", "
+		h[key] += value
+	}
 }

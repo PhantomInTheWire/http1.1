@@ -71,22 +71,45 @@ func parseRequestLine(RequestStr string) (*RequestLine, int, error) {
 		return nil, 0, ErrBadRequest
 	}
 
-	seperatedLineOne := strings.Split(parts[0], " ")
-
-	if len(seperatedLineOne) != 3 {
-		return nil, 0, ErrBadRequest
+	requestLine := parts[0]
+	if err := validateRequestLineFormat(requestLine); err != nil {
+		return nil, 0, err
 	}
 
-	httpVersion := strings.Split(seperatedLineOne[2], "/")[1]
-	requestTarget := seperatedLineOne[1]
-	method := seperatedLineOne[0]
-	if !validateHttpVersion(httpVersion) {
-		return nil, 0, fmt.Errorf("%s: %s", ErrBadRequest.Error(), RequestStr)
+	rl, err := parseRequestLineComponents(requestLine)
+	if err != nil {
+		return nil, 0, err
 	}
+
+	return rl, len(requestLine) + len("\r\n"), nil
+}
+
+func parseRequestLineComponents(requestLine string) (*RequestLine, error) {
+	parts := strings.Split(requestLine, " ")
+	httpVersion, err := extractHttpVersion(parts[2])
+	if err != nil {
+		return nil, err
+	}
+
+	requestTarget := parts[1]
+	method := parts[0]
+
 	rl := &RequestLine{
 		HttpVersion:   httpVersion,
 		RequestTarget: requestTarget,
 		Method:        method,
 	}
-	return rl, len(parts[0]) + len("\r\n"), nil
+	return rl, nil
+}
+
+func extractHttpVersion(versionPart string) (string, error) {
+	parts := strings.Split(versionPart, "/")
+	if len(parts) != 2 {
+		return "", ErrBadRequest
+	}
+	httpVersion := parts[1]
+	if !validateHttpVersion(httpVersion) {
+		return "", fmt.Errorf("%s: %s", ErrBadRequest.Error(), versionPart)
+	}
+	return httpVersion, nil
 }

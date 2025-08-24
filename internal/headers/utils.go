@@ -1,6 +1,9 @@
 package headers
 
-import "strings"
+import (
+	"fmt"
+	"strings"
+)
 
 func hasSpaceBeforeColon(s string) bool {
 	idx := strings.IndexRune(s, ':')
@@ -11,4 +14,13 @@ func hasSpaceBeforeColon(s string) bool {
 		return true
 	}
 	return false
+}
+
+func validateHeaderKey(rawKey string) error {
+	for _, r := range rawKey {
+		if r <= 32 || r > 126 || r == ':' {
+			return fmt.Errorf("invalid character in header key: %v", rawKey)
+		}
+	}
+	return nil
 }
