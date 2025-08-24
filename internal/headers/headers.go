@@ -5,23 +5,6 @@ import (
 	"strings"
 )
 
-type Headers map[string]string
-
-func NewHeaders() Headers {
-	return make(Headers)
-}
-
-func hasSpaceBeforeColon(s string) bool {
-	idx := strings.IndexRune(s, ':')
-	if idx == -1 || idx == 0 {
-		return false
-	}
-	if s[idx-1] == ' ' {
-		return true
-	}
-	return false
-}
-
 func (h Headers) Parse(data []byte) (n int, done bool, err error) {
 	headerString := string(data)
 
