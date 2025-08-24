@@ -29,6 +29,10 @@ func (h Headers) Parse(data []byte) (n int, done bool, err error) {
 		return len("\r\n\r\n"), true, nil
 	}
 
+	if strings.HasPrefix(headerString, "\r\n") {
+		return len("\r\n"), true, nil
+	}
+
 	endIdx := strings.Index(headerString, "\r\n\r\n")
 	if endIdx == -1 {
 		return 0, false, nil
@@ -53,7 +57,7 @@ func (h Headers) Parse(data []byte) (n int, done bool, err error) {
 			return 0, false, fmt.Errorf("empty header key")
 		}
 		for _, r := range rawKey {
-			if r < 32 || r > 126 || r == ':' {
+			if r <= 32 || r > 126 || r == ':' {
 				return 0, false, fmt.Errorf("invalid character in header key: %v", rawKey)
 			}
 		}
