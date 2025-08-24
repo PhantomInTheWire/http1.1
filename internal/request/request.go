@@ -20,31 +20,7 @@ func RequestFromReader(reader io.Reader) (*Request, error) {
 		return nil, err
 	}
 
-	return &r, nil
-}
+	printRequest(&r)
 
-func parseRequestFromReader(reader io.Reader, buf []byte, dataBuffer []byte, r *Request) error {
-	for r.State != DoneState {
-		n, err := reader.Read(buf)
-		if err != nil && err != io.EOF {
-			return err
-		}
-		if n > 0 {
-			dataBuffer = append(dataBuffer, buf[:n]...)
-		}
-		consumed, parseErr := r.parse(dataBuffer)
-		if parseErr != nil {
-			return parseErr
-		}
-		if consumed > 0 {
-			dataBuffer = dataBuffer[consumed:]
-		}
-		if err == io.EOF {
-			break
-		}
-	}
-	if r.State != DoneState {
-		return ErrBadRequest
-	}
-	return nil
+	return &r, nil
 }

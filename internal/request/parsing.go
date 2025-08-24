@@ -2,30 +2,8 @@ package request
 
 import (
 	"fmt"
+	"io"
 	"strings"
-)
-
-// Constants for HTTP request parsing
-const (
-	// Request line component positions
-	requestLineMethodIndex   = 0
-	requestLineTargetIndex   = 1
-	requestLineVersionIndex  = 2
-	expectedRequestLineParts = 3
-
-	// HTTP version parsing
-	httpVersionPartsCount = 2
-	httpVersionValueIndex = 1
-
-	// Data extraction
-	requestLineDataIndex = 0
-	minDataPartsCount    = 1
-
-	// String literals
-	emptyString            = ""
-	spaceDelimiter         = " "
-	carriageReturnLineFeed = "\r\n"
-	slashDelimiter         = "/"
 )
 
 func (r *Request) ParseRequestLine(data []byte) (int, error) {
@@ -166,4 +144,30 @@ func extractHttpVersion(versionPart string) (string, error) {
 		return emptyString, fmt.Errorf("%s: %s", ErrBadRequest.Error(), versionPart)
 	}
 	return httpVersion, nil
+}
+
+func parseRequestFromReader(reader io.Reader, buf []byte, dataBuffer []byte, r *Request) error {
+	for r.State != DoneState {
+		n, err := reader.Read(buf)
+		if err != nil && err != io.EOF {
+			return err
+		}
+		if n > 0 {
+			dataBuffer = append(dataBuffer, buf[:n]...)
+		}
+		consumed, parseErr := r.parse(dataBuffer)
+		if parseErr != nil {
+			return parseErr
+		}
+		if consumed > 0 {
+			dataBuffer = dataBuffer[consumed:]
+		}
+		if err == io.EOF {
+			break
+		}
+	}
+	if r.State != DoneState {
+		return ErrBadRequest
+	}
+	return nil
 }
