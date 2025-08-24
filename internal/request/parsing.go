@@ -3,6 +3,7 @@ package request
 import (
 	"fmt"
 	"io"
+	"strconv"
 	"strings"
 )
 
@@ -19,7 +20,7 @@ func (r *Request) ParseRequestLine(data []byte) (int, error) {
 	}
 
 	r.RequestLine = *requestLine
-	r.State = requestStateParsingHeaders
+	r.State = ParsingHeadersState
 	return consumed, nil
 }
 
@@ -29,8 +30,10 @@ func (r *Request) parseSingle(data []byte) (int, error) {
 		return 0, nil
 	case PendingState:
 		return r.parsePendingState(data)
-	case requestStateParsingHeaders:
+	case ParsingHeadersState:
 		return r.parseHeadersState(data)
+	case ParsingBodyState:
+		return r.parseBodyState(data)
 	default:
 		return 0, ErrBadRequest
 	}
@@ -46,9 +49,35 @@ func (r *Request) parseHeadersState(data []byte) (int, error) {
 		return 0, err
 	}
 	if done {
-		r.State = DoneState
+		r.State = ParsingBodyState
 	}
 	return n, nil
+}
+
+func (r *Request) parseBodyState(data []byte) (int, error) {
+	contentLengthString, err := r.Headers.Get("Content-Length")
+	if err != nil {
+		return 0, err
+	}
+	if contentLengthString == "" && len(data) == 0 {
+		r.State = DoneState
+		return 0, nil
+	}
+	if contentLengthString == "" && len(data) != 0 {
+		return 0, fmt.Errorf("unexpected body")
+	}
+	contentLength, err := strconv.Atoi(contentLengthString)
+	if err != nil {
+		return 0, err
+	}
+	if len(data)+len(r.Body) > contentLength {
+		return 0, fmt.Errorf("content length is invalid")
+	}
+	r.Body = append(r.Body, data...)
+	if len(r.Body) == contentLength {
+		r.State = DoneState
+	}
+	return len(data), nil
 }
 
 func (r *Request) parse(data []byte) (int, error) {

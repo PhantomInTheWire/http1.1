@@ -115,3 +115,10 @@ func (h Headers) setHeaderValue(key, value string) {
 		h[key] += value
 	}
 }
+
+func (h Headers) Get(key string) (string, error) {
+	if err := validateHeaderKey(key); err != nil {
+		return "", err
+	}
+	return h[strings.ToLower(key)], nil
+}

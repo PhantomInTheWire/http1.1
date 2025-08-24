@@ -1,19 +1,23 @@
 package request
 
-import "httpfromtcp/internal/headers"
+import (
+	"httpfromtcp/internal/headers"
+)
 
 type ParseState int
 
 const (
-	PendingState               ParseState = 0
-	DoneState                  ParseState = 1
-	requestStateParsingHeaders ParseState = 2
+	PendingState ParseState = iota
+	ParsingHeadersState
+	ParsingBodyState
+	DoneState
 )
 
 type Request struct {
 	RequestLine RequestLine
 	State       ParseState
 	Headers     headers.Headers
+	Body        []byte
 }
 
 func newRequest() Request {
