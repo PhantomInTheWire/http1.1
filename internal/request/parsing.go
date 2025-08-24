@@ -5,6 +5,29 @@ import (
 	"strings"
 )
 
+// Constants for HTTP request parsing
+const (
+	// Request line component positions
+	requestLineMethodIndex   = 0
+	requestLineTargetIndex   = 1
+	requestLineVersionIndex  = 2
+	expectedRequestLineParts = 3
+
+	// HTTP version parsing
+	httpVersionPartsCount = 2
+	httpVersionValueIndex = 1
+
+	// Data extraction
+	requestLineDataIndex = 0
+	minDataPartsCount    = 1
+
+	// String literals
+	emptyString            = ""
+	spaceDelimiter         = " "
+	carriageReturnLineFeed = "\r\n"
+	slashDelimiter         = "/"
+)
+
 func (r *Request) ParseRequestLine(data []byte) (int, error) {
 	requestLine, consumed, err := parseRequestLine(string(data))
 	if err != nil {
@@ -23,28 +46,31 @@ func (r *Request) ParseRequestLine(data []byte) (int, error) {
 }
 
 func (r *Request) parseSingle(data []byte) (int, error) {
-	if r.State == DoneState {
+	switch r.State {
+	case DoneState:
 		return 0, nil
+	case PendingState:
+		return r.parsePendingState(data)
+	case requestStateParsingHeaders:
+		return r.parseHeadersState(data)
+	default:
+		return 0, ErrBadRequest
 	}
-	if r.State == PendingState {
-		n, err := r.ParseRequestLine(data)
-		if err != nil {
-			return 0, err
-		}
-		return n, nil
+}
+
+func (r *Request) parsePendingState(data []byte) (int, error) {
+	return r.ParseRequestLine(data)
+}
+
+func (r *Request) parseHeadersState(data []byte) (int, error) {
+	n, done, err := r.Headers.Parse(data)
+	if err != nil {
+		return 0, err
 	}
-	if r.State == requestStateParsingHeaders {
-		n, done, err := r.Headers.Parse(data)
-		if err != nil {
-			return 0, err
-		}
-		if done {
-			r.State = DoneState
-			return n, nil
-		}
-		return n, nil
+	if done {
+		r.State = DoneState
 	}
-	return 0, ErrBadRequest
+	return n, nil
 }
 
 func (r *Request) parse(data []byte) (int, error) {
@@ -63,53 +89,81 @@ func (r *Request) parse(data []byte) (int, error) {
 }
 
 func parseRequestLine(RequestStr string) (*RequestLine, int, error) {
-	parts := strings.Split(RequestStr, "\r\n")
-	if len(parts) == 1 && !strings.HasSuffix(RequestStr, "\r\n") {
-		return nil, 0, nil
-	}
-	if len(parts) < 1 {
-		return nil, 0, ErrBadRequest
-	}
-
-	requestLine := parts[0]
-	if err := validateRequestLineFormat(requestLine); err != nil {
+	requestLine, consumed, err := extractRequestLineFromData(RequestStr)
+	if err != nil {
 		return nil, 0, err
 	}
+	if consumed == 0 {
+		return nil, 0, nil
+	}
 
-	rl, err := parseRequestLineComponents(requestLine)
+	rl, err := validateAndParseRequestLine(requestLine)
 	if err != nil {
 		return nil, 0, err
 	}
 
-	return rl, len(requestLine) + len("\r\n"), nil
+	return rl, consumed, nil
+}
+
+func extractRequestLineFromData(data string) (string, int, error) {
+	parts := strings.Split(data, carriageReturnLineFeed)
+	if len(parts) == 1 && !strings.HasSuffix(data, carriageReturnLineFeed) {
+		return emptyString, 0, nil
+	}
+	if len(parts) < minDataPartsCount {
+		return emptyString, 0, ErrBadRequest
+	}
+
+	requestLine := parts[requestLineDataIndex]
+	return requestLine, len(requestLine) + len(carriageReturnLineFeed), nil
+}
+
+func validateAndParseRequestLine(requestLine string) (*RequestLine, error) {
+	if err := validateRequestLineFormat(requestLine); err != nil {
+		return nil, err
+	}
+
+	return parseRequestLineComponents(requestLine)
 }
 
 func parseRequestLineComponents(requestLine string) (*RequestLine, error) {
-	parts := strings.Split(requestLine, " ")
-	httpVersion, err := extractHttpVersion(parts[2])
+	parts, err := splitRequestLine(requestLine)
 	if err != nil {
 		return nil, err
 	}
 
-	requestTarget := parts[1]
-	method := parts[0]
+	return createRequestLine(parts)
+}
 
-	rl := &RequestLine{
-		HttpVersion:   httpVersion,
-		RequestTarget: requestTarget,
-		Method:        method,
+func splitRequestLine(requestLine string) ([]string, error) {
+	parts := strings.Split(requestLine, spaceDelimiter)
+	if len(parts) != expectedRequestLineParts {
+		return nil, ErrBadRequest
 	}
-	return rl, nil
+	return parts, nil
+}
+
+func createRequestLine(parts []string) (*RequestLine, error) {
+	httpVersion, err := extractHttpVersion(parts[requestLineVersionIndex])
+	if err != nil {
+		return nil, err
+	}
+
+	return &RequestLine{
+		HttpVersion:   httpVersion,
+		RequestTarget: parts[requestLineTargetIndex],
+		Method:        parts[requestLineMethodIndex],
+	}, nil
 }
 
 func extractHttpVersion(versionPart string) (string, error) {
-	parts := strings.Split(versionPart, "/")
-	if len(parts) != 2 {
-		return "", ErrBadRequest
+	parts := strings.Split(versionPart, slashDelimiter)
+	if len(parts) != httpVersionPartsCount {
+		return emptyString, ErrBadRequest
 	}
-	httpVersion := parts[1]
+	httpVersion := parts[httpVersionValueIndex]
 	if !validateHttpVersion(httpVersion) {
-		return "", fmt.Errorf("%s: %s", ErrBadRequest.Error(), versionPart)
+		return emptyString, fmt.Errorf("%s: %s", ErrBadRequest.Error(), versionPart)
 	}
 	return httpVersion, nil
 }

@@ -2,13 +2,18 @@ package request
 
 import "strings"
 
+// Constants for HTTP request validation
+const (
+	supportedHttpVersion = "1.1"
+)
+
 func validateHttpVersion(version string) bool {
-	return version == "1.1"
+	return version == supportedHttpVersion
 }
 
 func validateRequestLineFormat(requestLine string) error {
-	parts := strings.Split(requestLine, " ")
-	if len(parts) != 3 {
+	parts := strings.Split(requestLine, spaceDelimiter)
+	if len(parts) != expectedRequestLineParts {
 		return ErrBadRequest
 	}
 	return nil
