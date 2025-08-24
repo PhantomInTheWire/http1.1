@@ -27,9 +27,15 @@ func main() {
 			fmt.Printf("Error parsing request: %v\n", err)
 			continue
 		}
+
 		fmt.Printf("Request line:\n")
 		fmt.Printf("- Method: %v\n", r.RequestLine.Method)
 		fmt.Printf("- Target: %v\n", r.RequestLine.RequestTarget)
 		fmt.Printf("- Version: %v\n", r.RequestLine.HttpVersion)
+
+		fmt.Printf("Headers:\n")
+		for key, value := range r.Headers {
+			fmt.Printf("- %s: %s\n", key, value)
+		}
 	}
 }

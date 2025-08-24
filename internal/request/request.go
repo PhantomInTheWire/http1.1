@@ -20,7 +20,5 @@ func RequestFromReader(reader io.Reader) (*Request, error) {
 		return nil, err
 	}
 
-	printRequest(&r)
-
 	return &r, nil
 }
