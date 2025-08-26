@@ -140,11 +140,24 @@ func (w *Writer) WriteChunk(p []byte) (int, error) {
 }
 
 func (w *Writer) WriteChunkedBodyDone() error {
-	// Write the final zero-length chunk
-	_, err := w.w.Write([]byte("0\r\n\r\n"))
-	return err
+	_, err := w.w.Write([]byte("0\r\n"))
+	if err != nil {
+		return err
+	}
+	w.state = StateBodyWritten
+	return nil
 }
 
 func (w *Writer) WriteTrailers(h headers.Headers) error {
-	w.w.Write(header)
+	if w.state != StateBodyWritten {
+		return fmt.Errorf("cannot write trailers: body not written yet")
+	}
+	for k, v := range h {
+		_, err := fmt.Fprintf(w.w, "%v: %v\r\n", k, v)
+		if err != nil {
+			return err
+		}
+	}
+	_, err := w.w.Write([]byte("\r\n"))
+	return err
 }
