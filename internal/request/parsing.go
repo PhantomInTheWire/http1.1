@@ -59,12 +59,11 @@ func (r *Request) parseBodyState(data []byte) (int, error) {
 	if err != nil {
 		return 0, err
 	}
-	if contentLengthString == "" && len(data) == 0 {
+	if contentLengthString == "" {
+		// No Content-Length header means no body expected
+		// If we have data, it might be connection artifacts, so we ignore it
 		r.State = DoneState
 		return 0, nil
-	}
-	if contentLengthString == "" && len(data) != 0 {
-		return 0, fmt.Errorf("unexpected body")
 	}
 	contentLength, err := strconv.Atoi(contentLengthString)
 	if err != nil {

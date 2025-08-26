@@ -4,10 +4,14 @@ import (
 	"httpfromtcp/internal/request"
 	"httpfromtcp/internal/response"
 	"httpfromtcp/internal/server"
+	"httpfromtcp/internal/headers"
 	"log"
 	"os"
 	"os/signal"
 	"syscall"
+	"strings"
+	"io"
+	"net/http"
 )
 
 const port = 42069
@@ -66,8 +70,65 @@ func myHandler(w *response.Writer, req *request.Request) {
 	_, _ = w.WriteBody([]byte(successHTML))
 }
 
+func proxyHandler(w *response.Writer, req *request.Request) {
+	if !strings.HasPrefix(req.RequestLine.RequestTarget, "/httpbin/") {
+		_ = w.WriteStatusLine(response.StatusBadRequest)
+		h := response.GetDefaultHeaders(len("Bad Request"))
+		_ = w.WriteHeaders(h)
+		_, _ = w.WriteBody([]byte("Bad Request"))
+		return
+	}
+
+	path := strings.TrimPrefix(req.RequestLine.RequestTarget, "/httpbin")
+	targetURL := "https://httpbin.org" + path
+
+	resp, err := http.Get(targetURL)
+	if err != nil {
+		_ = w.WriteStatusLine(response.StatusInternalServerError)
+		h := response.GetDefaultHeaders(len("Internal Error"))
+		_ = w.WriteHeaders(h)
+		_, _ = w.WriteBody([]byte("Internal Error"))
+		return
+	}
+	defer resp.Body.Close()
+
+	// Write status line
+	_ = w.WriteStatusLine(response.StatusCode(resp.StatusCode))
+
+	// Copy headers except Content-Length
+	h := headers.NewHeaders()
+	for k, v := range resp.Header {
+		if strings.ToLower(k) == "content-length" {
+			continue
+		}
+		h[k] = strings.Join(v, ", ")
+	}
+	h["Transfer-Encoding"] = "chunked"
+	_ = w.WriteHeaders(h)
+
+	// Stream chunks
+	buf := make([]byte, 1024)
+	for {
+		n, err := resp.Body.Read(buf)
+		if n > 0 {
+			log.Printf("Read %d bytes from httpbin.org\n", n)
+			_, _ = w.WriteChunk(buf[:n])
+		}
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			log.Printf("Error reading body: %v", err)
+			break
+		}
+	}
+
+	// Final terminating chunk
+	_ = w.WriteChunkedBodyDone()
+}
+
 func main() {
-	server, err := server.Serve(port, myHandler)
+	server, err := server.Serve(port, proxyHandler)
 	if err != nil {
 		log.Fatalf("Error starting server: %v", err)
 	}
