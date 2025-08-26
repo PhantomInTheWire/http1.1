@@ -1,8 +1,11 @@
 package server
 
 import (
+	"bytes"
 	"fmt"
+	"httpfromtcp/internal/request"
 	"httpfromtcp/internal/response"
+	"io"
 	"net"
 	"os"
 	"strconv"
@@ -19,9 +22,34 @@ type Server struct {
 	State    ServerState
 	Port     int
 	Listener net.Listener
+	handler  Handler
 }
 
-func Serve(port int) (*Server, error) {
+type HandlerError struct {
+	StatusCode   int
+	ErrorMessage string
+}
+
+func (h HandlerError) writeHandlerError(w io.Writer) {
+	if err := response.WriteStatusLine(w, response.StatusCode(h.StatusCode)); err != nil {
+		fmt.Fprintf(os.Stderr, "Error writing status line: %v\n", err)
+		return
+	}
+	body := []byte(h.ErrorMessage)
+	headers := response.GetDefaultHeaders(len(body))
+	if err := response.WriteHeaders(w, headers); err != nil {
+		fmt.Fprintf(os.Stderr, "Error writing headers: %v\n", err)
+		return
+	}
+	if _, err := w.Write(body); err != nil {
+		fmt.Fprintf(os.Stderr, "Error writing body: %v\n", err)
+		return
+	}
+}
+
+type Handler func(w io.Writer, req *request.Request) *HandlerError
+
+func Serve(port int, h Handler) (*Server, error) {
 	portString := strconv.Itoa(port)
 	tcpListener, err := net.Listen("tcp", "localhost:"+portString)
 	if err != nil {
@@ -31,6 +59,7 @@ func Serve(port int) (*Server, error) {
 		State:    OpenState,
 		Port:     port,
 		Listener: tcpListener,
+		handler:  h,
 	}
 	go s.listen()
 	return &s, nil
@@ -55,13 +84,32 @@ func (s *Server) listen() {
 }
 
 func (s *Server) handle(conn net.Conn) {
+	// request parsing
+	r, err := request.RequestFromReader(conn)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Error parsing request: %v\n", err)
+		return
+	}
+	var buf bytes.Buffer
+
+	hErr := s.handler(&buf, r)
+	if hErr != nil {
+		hErr.writeHandlerError(conn)
+		return
+	}
+	// resposnse stuff
 	if err := response.WriteStatusLine(conn, response.StatusOK); err != nil {
 		fmt.Fprintf(os.Stderr, "Error writing status line: %v\n", err)
 		return
 	}
-	h := response.GetDefaultHeaders(0)
-	if err := response.WriteHeaders(conn, h); err != nil {
+	body := buf.String()
+	headers := response.GetDefaultHeaders(len([]byte(body)))
+	if err := response.WriteHeaders(conn, headers); err != nil {
 		fmt.Fprintf(os.Stderr, "Error writing headers: %v\n", err)
+		return
+	}
+	if err := response.WriteBody(conn, body); err != nil {
+		fmt.Fprintf(os.Stderr, "Error writing body: %v\n", err)
 		return
 	}
 	if err := conn.Close(); err != nil {

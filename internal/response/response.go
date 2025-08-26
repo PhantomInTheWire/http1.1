@@ -55,3 +55,11 @@ func WriteHeaders(w io.Writer, headers headers.Headers) error {
 	}
 	return nil
 }
+
+func WriteBody(w io.Writer, body string) error {
+	_, err := w.Write([]byte(body))
+	if err != nil {
+		return err
+	}
+	return nil
+}
