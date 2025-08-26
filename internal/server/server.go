@@ -9,6 +9,7 @@ import (
 	"net"
 	"os"
 	"strconv"
+	"time"
 )
 
 type ServerState int
@@ -75,7 +76,7 @@ func (s *Server) listen() {
 	for {
 		conn, err := s.Listener.Accept()
 		if err != nil {
-			fmt.Fprintln(os.Stderr, fmt.Errorf("error in connection %v", err))
+			fmt.Fprintf(os.Stderr, "Error accepting connection: %v\n", err)
 		}
 		go func() {
 			s.handle(conn)
@@ -84,6 +85,18 @@ func (s *Server) listen() {
 }
 
 func (s *Server) handle(conn net.Conn) {
+	defer func() {
+		if err := conn.Close(); err != nil {
+			fmt.Fprintf(os.Stderr, "Error closing connection: %v\n", err)
+		}
+	}()
+
+	// Set connection deadline to prevent hanging
+	if err := conn.SetDeadline(time.Now().Add(30 * time.Second)); err != nil {
+		fmt.Fprintf(os.Stderr, "Error setting connection deadline: %v\n", err)
+		return
+	}
+
 	// request parsing
 	r, err := request.RequestFromReader(conn)
 	if err != nil {
@@ -111,8 +124,5 @@ func (s *Server) handle(conn net.Conn) {
 	if err := response.WriteBody(conn, body); err != nil {
 		fmt.Fprintf(os.Stderr, "Error writing body: %v\n", err)
 		return
-	}
-	if err := conn.Close(); err != nil {
-		fmt.Fprintf(os.Stderr, "Error closing connection: %v\n", err)
 	}
 }
