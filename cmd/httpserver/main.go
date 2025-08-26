@@ -12,11 +12,44 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"strings"
 	"syscall"
 )
 
 const port = 42069
+
+func videoHandler(w *response.Writer, req *request.Request) {
+	// Use current working directory for more reliable path resolution
+	wd, err := os.Getwd()
+	if err != nil {
+		_ = w.WriteStatusLine(response.StatusInternalServerError)
+		h := response.GetDefaultHeaders(len("Video not found"))
+		_ = w.WriteHeaders(h)
+		_, _ = w.WriteBody([]byte("Video not found"))
+		return
+	}
+	videoPath := filepath.Join(wd, "assets", "vim.mp4")
+
+	videoData, err := os.ReadFile(videoPath)
+	if err != nil {
+		_ = w.WriteStatusLine(response.StatusInternalServerError)
+		h := response.GetDefaultHeaders(len("Video not found"))
+		_ = w.WriteHeaders(h)
+		_, _ = w.WriteBody([]byte("Video not found"))
+		return
+	}
+
+	_ = w.WriteStatusLine(response.StatusOK)
+
+	h := headers.NewHeaders()
+	h["Content-Length"] = fmt.Sprintf("%d", len(videoData))
+	h["Content-Type"] = "video/mp4"
+	h["Connection"] = "close"
+	_ = w.WriteHeaders(h)
+
+	_, _ = w.WriteBody(videoData)
+}
 
 func proxyHandler(w *response.Writer, req *request.Request) {
 	if !strings.HasPrefix(req.RequestLine.RequestTarget, "/httpbin/") {
@@ -71,7 +104,7 @@ func proxyHandler(w *response.Writer, req *request.Request) {
 			break
 		}
 		if err != nil {
-			log.Printf("Error reading body: %v", err)
+			log.Printf("Error reading body: %v\n", err)
 			break
 		}
 	}
@@ -91,8 +124,24 @@ func proxyHandler(w *response.Writer, req *request.Request) {
 	_ = w.WriteTrailers(trailers)
 }
 
+func router(w *response.Writer, req *request.Request) {
+	path := req.RequestLine.RequestTarget
+
+	switch {
+	case path == "/video":
+		videoHandler(w, req)
+	case strings.HasPrefix(path, "/httpbin/"):
+		proxyHandler(w, req)
+	default:
+		_ = w.WriteStatusLine(response.StatusBadRequest)
+		h := response.GetDefaultHeaders(len("Not Found"))
+		_ = w.WriteHeaders(h)
+		_, _ = w.WriteBody([]byte("Not Found"))
+	}
+}
+
 func main() {
-	server, err := server.Serve(port, proxyHandler)
+	server, err := server.Serve(port, router)
 	if err != nil {
 		log.Fatalf("Error starting server: %v", err)
 	}
