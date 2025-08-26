@@ -7,6 +7,20 @@ import (
 	"strconv"
 )
 
+type WriterState int
+
+const (
+	StateInitial WriterState = iota
+	StateStatusWritten
+	StateHeadersWritten
+	StateBodyWritten
+)
+
+type Writer struct {
+	w     io.Writer
+	state WriterState
+}
+
 type StatusCode int
 
 const (
@@ -62,4 +76,42 @@ func WriteBody(w io.Writer, body string) error {
 		return err
 	}
 	return nil
+}
+
+func NewWriter(w io.Writer) *Writer {
+	return &Writer{w: w, state: StateInitial}
+}
+
+func (w *Writer) WriteStatusLine(statusCode StatusCode) error {
+	if w.state != StateInitial {
+		return fmt.Errorf("cannot write status line: already written or out of order")
+	}
+	if err := WriteStatusLine(w.w, statusCode); err != nil {
+		return err
+	}
+	w.state = StateStatusWritten
+	return nil
+}
+
+func (w *Writer) WriteHeaders(headers headers.Headers) error {
+	if w.state != StateStatusWritten {
+		return fmt.Errorf("cannot write headers: status line not written yet")
+	}
+	if err := WriteHeaders(w.w, headers); err != nil {
+		return err
+	}
+	w.state = StateHeadersWritten
+	return nil
+}
+
+func (w *Writer) WriteBody(p []byte) (int, error) {
+	if w.state != StateHeadersWritten {
+		return 0, fmt.Errorf("cannot write body: headers not written yet")
+	}
+	n, err := w.w.Write(p)
+	if err != nil {
+		return n, err
+	}
+	w.state = StateBodyWritten
+	return n, nil
 }

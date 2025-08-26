@@ -122,3 +122,18 @@ func (h Headers) Get(key string) (string, error) {
 	}
 	return h[strings.ToLower(key)], nil
 }
+
+func (h Headers) Set(key, value string) error {
+	if err := validateHeaderKey(key); err != nil {
+		return err
+	}
+	lowerKey := strings.ToLower(key)
+	for existingKey := range h {
+		if strings.ToLower(existingKey) == lowerKey {
+			delete(h, existingKey)
+			break
+		}
+	}
+	h[lowerKey] = value
+	return nil
+}
