@@ -72,13 +72,11 @@ func (s *Server) handle(conn net.Conn) {
 		}
 	}()
 
-	// Set connection deadline to prevent hanging
 	if err := conn.SetDeadline(time.Now().Add(30 * time.Second)); err != nil {
 		fmt.Fprintf(os.Stderr, "Error setting connection deadline: %v\n", err)
 		return
 	}
 
-	// request parsing
 	r, err := request.RequestFromReader(conn)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Error parsing request: %v\n", err)

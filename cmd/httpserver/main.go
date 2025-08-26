@@ -1,74 +1,22 @@
 package main
 
 import (
+	"crypto/sha256"
+	"fmt"
+	"httpfromtcp/internal/headers"
 	"httpfromtcp/internal/request"
 	"httpfromtcp/internal/response"
 	"httpfromtcp/internal/server"
-	"httpfromtcp/internal/headers"
+	"io"
 	"log"
+	"net/http"
 	"os"
 	"os/signal"
-	"syscall"
 	"strings"
-	"io"
-	"net/http"
+	"syscall"
 )
 
 const port = 42069
-
-const badRequestHTML = `<html>
-  <head>
-    <title>400 Bad Request</title>
-  </head>
-  <body>
-    <h1>Bad Request</h1>
-    <p>Your request honestly kinda sucked.</p>
-  </body>
-</html>`
-
-const internalErrorHTML = `<html>
-  <head>
-    <title>500 Internal Server Error</title>
-  </head>
-  <body>
-    <h1>Internal Server Error</h1>
-    <p>Okay, you know what? This one is on me.</p>
-  </body>
-</html>`
-
-const successHTML = `<html>
-  <head>
-    <title>200 OK</title>
-  </head>
-  <body>
-    <h1>Success!</h1>
-    <p>Your request was an absolute banger.</p>
-  </body>
-</html>`
-
-func myHandler(w *response.Writer, req *request.Request) {
-	if req.RequestLine.RequestTarget == "/yourproblem" {
-		_ = w.WriteStatusLine(response.StatusBadRequest)
-		headers := response.GetDefaultHeaders(len(badRequestHTML))
-		_ = headers.Set("Content-Type", "text/html")
-		_ = w.WriteHeaders(headers)
-		_, _ = w.WriteBody([]byte(badRequestHTML))
-		return
-	}
-	if req.RequestLine.RequestTarget == "/myproblem" {
-		_ = w.WriteStatusLine(response.StatusInternalServerError)
-		headers := response.GetDefaultHeaders(len(internalErrorHTML))
-		_ = headers.Set("Content-Type", "text/html")
-		_ = w.WriteHeaders(headers)
-		_, _ = w.WriteBody([]byte(internalErrorHTML))
-		return
-	}
-	_ = w.WriteStatusLine(response.StatusOK)
-	headers := response.GetDefaultHeaders(len(successHTML))
-	_ = headers.Set("Content-Type", "text/html")
-	_ = w.WriteHeaders(headers)
-	_, _ = w.WriteBody([]byte(successHTML))
-}
 
 func proxyHandler(w *response.Writer, req *request.Request) {
 	if !strings.HasPrefix(req.RequestLine.RequestTarget, "/httpbin/") {
@@ -90,12 +38,14 @@ func proxyHandler(w *response.Writer, req *request.Request) {
 		_, _ = w.WriteBody([]byte("Internal Error"))
 		return
 	}
-	defer resp.Body.Close()
+	defer func() {
+		if err := resp.Body.Close(); err != nil {
+			log.Printf("Error closing response body: %v", err)
+		}
+	}()
 
-	// Write status line
 	_ = w.WriteStatusLine(response.StatusCode(resp.StatusCode))
 
-	// Copy headers except Content-Length
 	h := headers.NewHeaders()
 	for k, v := range resp.Header {
 		if strings.ToLower(k) == "content-length" {
@@ -104,14 +54,17 @@ func proxyHandler(w *response.Writer, req *request.Request) {
 		h[k] = strings.Join(v, ", ")
 	}
 	h["Transfer-Encoding"] = "chunked"
+	h["Trailer"] = "X-Content-SHA256, X-Content-Length"
 	_ = w.WriteHeaders(h)
 
-	// Stream chunks
+	// Keep track of the full response body
+	var bodyBuffer []byte
 	buf := make([]byte, 1024)
 	for {
 		n, err := resp.Body.Read(buf)
 		if n > 0 {
 			log.Printf("Read %d bytes from httpbin.org\n", n)
+			bodyBuffer = append(bodyBuffer, buf[:n]...)
 			_, _ = w.WriteChunk(buf[:n])
 		}
 		if err == io.EOF {
@@ -125,6 +78,17 @@ func proxyHandler(w *response.Writer, req *request.Request) {
 
 	// Final terminating chunk
 	_ = w.WriteChunkedBodyDone()
+
+	// Calculate hash and content length
+	hash := sha256.Sum256(bodyBuffer)
+	hashHex := fmt.Sprintf("%x", hash)
+	contentLength := len(bodyBuffer)
+
+	// Write trailers
+	trailers := headers.NewHeaders()
+	trailers["X-Content-SHA256"] = hashHex
+	trailers["X-Content-Length"] = fmt.Sprintf("%d", contentLength)
+	_ = w.WriteTrailers(trailers)
 }
 
 func main() {
