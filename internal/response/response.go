@@ -30,22 +30,22 @@ const (
 )
 
 func WriteStatusLine(w io.Writer, statusCode StatusCode) error {
-	statusLine := "HTTP/1.1 "
+	var reason string
 	switch statusCode {
-	case StatusOK:
-		statusLine += "200 OK\r\n"
-	case StatusBadRequest:
-		statusLine += "400 Bad Request\r\n"
-	case StatusInternalServerError:
-		statusLine += "500 Internal Server Error\r\n"
+	case 200:
+		reason = "OK"
+	case 400:
+		reason = "Bad Request"
+	case 404:
+		reason = "Not Found"
+	case 500:
+		reason = "Internal Server Error"
 	default:
-		return fmt.Errorf("invalid status code %v: ", statusCode)
+		reason = "Status"
 	}
+	statusLine := fmt.Sprintf("HTTP/1.1 %d %s\r\n", statusCode, reason)
 	_, err := w.Write([]byte(statusLine))
-	if err != nil {
-		return err
-	}
-	return nil
+	return err
 }
 
 func GetDefaultHeaders(contentLen int) headers.Headers {
@@ -140,7 +140,7 @@ func (w *Writer) WriteChunk(p []byte) (int, error) {
 }
 
 func (w *Writer) WriteChunkedBodyDone() error {
-	_, err := w.w.Write([]byte("0\r\n"))
+	_, err := w.w.Write([]byte("0\r\n\r\n"))
 	if err != nil {
 		return err
 	}
