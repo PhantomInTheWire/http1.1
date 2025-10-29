@@ -94,6 +94,3 @@ dist/
 # Local development
 .local/
 local/
-
-# assets
-assets
