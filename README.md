@@ -127,15 +127,3 @@ curl http://localhost:42069/httpbin/user-agent  # Proxied response with trailers
   ```
 - CI via GitHub Actions (`ci.yml`) for linting and testing.
 
-## Limitations & Notes
-- Only HTTP/1.1 supported; no HTTP/1.0 or 2+.
-- No HTTPS/TLS.
-- Proxy limited to httpbin.org paths.
-- Body parsing assumes Content-Length; no Transfer-Encoding: chunked for requests.
-- UDP sender may be for separate testing.
-
-## Contributing
-Fork, make changes, and submit a PR. Ensure tests pass and follow Go conventions.
-
-## License
-(Placeholder: Add your license here, e.g., MIT).
